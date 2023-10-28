@@ -1,0 +1,24 @@
+private_endpoints = {
+  vnet_01 = { # Key of the virtual network
+    # lz_key = ""  # Landingzone key when deployed in remote landing zone
+    # vnet_key    = "vnet_01"
+    # subnet_keys = ["subnet_01"]
+    resource_group_key = "openai_pep_rg_re1" # Key of resource group of the vnet
+    subnet_id = "/subscriptions/6f035180-4066-42f0-b0fa-5fbc1ae67500/resourceGroups/gcci-platform/providers/Microsoft.Network/virtualNetworks/gcci-vnet-internet/subnets/escep-snet-app-internet"
+
+#    cognitive_services_account = {
+    openai = {      
+      csa1 = {
+        private_service_connection = {
+          name = "psc-csa1"
+        }
+
+        private_dns = {
+          zone_group_name = "default"
+          keys            = ["openai_dns_re1"]
+        }
+      }
+    }
+
+  }
+}

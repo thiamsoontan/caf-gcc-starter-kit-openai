@@ -1,0 +1,34 @@
+# resource "azurerm_search_service" "search" {
+#   name                = random_string.azurerm_search_service_name.result
+#   resource_group_name = azurerm_resource_group.rg.name
+#   location            = azurerm_resource_group.rg.location
+#   sku                 = var.sku
+#   replica_count       = var.replica_count
+#   partition_count     = var.partition_count
+# }
+
+search_service = {
+  ss_1 = {
+    resource_group = {
+      key = "search_service_rg_re1"
+    }
+    name               = "openai-search-service"    
+    sku               = "Standard"
+    replica_count     = "1" 
+    partition_count   = "1"
+
+    # # pep not working
+    subnet_id = "/subscriptions/{{subscription_id}}/resourceGroups/{{resource_group_name}}/providers/Microsoft.Network/virtualNetworks/{{internet_vnet_name}}/subnets/{{prefix}}-snet-ai-internet"
+    private_dns_zone_keys = ["search_service_dns_re1"]   
+
+    tags = { 
+      purpose = "{{zone_code}} search service" 
+      project-code = "{{project_code}}" 
+      env = "{{caf_environment}}" 
+      zone = "{{zone_code}}"
+      tier = "{{tier_code}}"          
+    }
+
+  }
+
+}

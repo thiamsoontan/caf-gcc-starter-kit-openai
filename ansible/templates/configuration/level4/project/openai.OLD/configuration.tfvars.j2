@@ -1,0 +1,32 @@
+cognitive_services_account = {
+  openai_account_1 = {
+    resource_group = {
+      key = "openai_rg_re1"
+    }
+    name     = "openai-1"
+    kind     = "OpenAI" 
+    sku_name = "S0"
+    custom_subdomain_name = "csn-alz-{{project_code}}-1"
+    public_network_access_enabled = false # true
+
+    deployment_name = "{{project_code}}-deployment-gpt-35-turbo"
+    model_name    = "gpt-35-turbo"
+    model_version = "0613"
+
+
+    # # pep not working
+    # subnet_id = "/subscriptions/{{subscription_id}}/resourceGroups/{{resource_group_name}}/providers/Microsoft.Network/virtualNetworks/{{internet_vnet_name}}/subnets/{{prefix}}-snet-app-internet"
+    # private_dns_zone_keys = ["openai_dns_re1"]   
+
+    tags = { 
+      purpose = "{{zone_code}} openai" 
+      project-code = "{{project_code}}" 
+      env = "{{caf_environment}}" 
+      zone = "{{zone_code}}"
+      tier = "{{tier_code}}"         
+    } 
+
+  }
+
+}
+

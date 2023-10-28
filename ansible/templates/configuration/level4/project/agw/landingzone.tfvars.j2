@@ -1,0 +1,17 @@
+landingzone = {
+  backend_type        = "azurerm"
+  level               = "level4"
+  key                 = "agw"      
+  global_settings_key = "shared_services" 
+  tfstates = {
+    launchpad = {
+      level   = "lower"
+      tfstate = "caf_launchpad.tfstate"
+    }    
+    shared_services = {
+      level   = "lower"
+      tfstate = "shared_services.tfstate"       
+    } 
+  }
+}
+

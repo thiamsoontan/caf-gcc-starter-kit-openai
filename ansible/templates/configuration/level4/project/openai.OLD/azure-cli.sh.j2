@@ -1,0 +1,46 @@
+# ** IMPORTANT - currently can only manually create the private endpoint.
+# TODO: create cli for private endpoint
+# syntax: az network private-endpoint create -g MyResourceGroup -n MyPE --vnet-name MyVnetName --subnet MySubnet --private-connection-resource-id "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/MyResourceGroup/providers/Microsoft.Network/privateLinkServices/MyPLS" --connection-name tttt -l centralus
+
+az network private-endpoint create  \
+-g {{prefix}}-rg-openai-pep-re1  \
+-n {{prefix}}-pep-openai \
+--subnet "/subscriptions/{{subscription_id}}/resourceGroups/gcci-platform/providers/Microsoft.Network/virtualNetworks/{{internet_vnet_name}}/subnets/{{prefix}}-snet-app-internet"
+--private-connection-resource-id "/subscriptions/{{subscription_id}}/resourceGroups/{{prefix}}-rg-openai-re1/providers/Microsoft.CognitiveServices/accounts/{{prefix}}-cog-openai-1"  \
+--connection-name "{{prefix}}-cn-openai-1"  \
+--group-id account \
+-l southeastasia
+
+az network private-endpoint dns-zone-group create   \ 
+--endpoint-name {{prefix}}-pep-openai   \ 
+-g {{prefix}}-rg-openai-pep-re1  \ 
+-n {{prefix}}-zg-openai   \ 
+--zone-name Default   \ 
+--private-dns-zone "privatelink.openai.azure.com"
+
+
+az network private-dns link vnet create 
+-g {{prefix}}-rg-openai-pep-re1  \ 
+-n {{prefix}}-vnetlink-openai-re1  \ 
+-z "privatelink.openai.azure.com"
+-v "/subscriptions/{{subscription_id}}/resourceGroups/gcci-platform/providers/Microsoft.Network/virtualNetworks/{{internet_vnet_name}}" 
+-e False
+
+
+
+az network private-dns link vnet create --name
+                                        --registration-enabled {0, 1, f, false, n, no, t, true, y, yes}
+                                        --resource-group
+                                        --virtual-network
+                                        --zone-name
+                                        [--no-wait {0, 1, f, false, n, no, t, true, y, yes}]
+                                        [--tags]
+
+
+az network private-endpoint dns-zone-group create --endpoint-name 
+                                                  --name
+                                                  --private-dns-zone
+                                                  --resource-group
+                                                  --zone-name
+                                                  [--no-wait {0, 1, f, false, n, no, t, true, y, yes}]
+

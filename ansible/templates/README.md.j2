@@ -1,0 +1,425 @@
+# deployment
+# starter kit launchpad setup
+# 1. Create container group with system-managed identity
+
+# login to tenant - must use this to login
+az login --tenant [tenant id] e.g. htx sandpit xxxxxx-ffda-45c1-adc5-xxxxxxxxxxxx
+
+# subscription
+az account set --subscription [your subscription id] 
+
+Open cloud-shell through Azure Portal
+
+=======================================================
+# Create container group with system-managed identity
+========================================================
+
+
+# image: aztfmod/rover-agent:1.4.6-2307.0508-gitlab
+#       or aztfmod/rover:1.5.2-2307.0508
+
+
+
+az group create --name ignite-rg-launchpad --location southeastasia
+
+RG_ID="/subscriptions/xxxxxxxx-4066-42f0-b0fa-xxxxxxxxxxxx"
+
+# cep-vnet-am-devops-prd - recommended vnet name
+az container create \
+  --name aci-gitlab-runner \
+  --resource-group ignite-rg-launchpad \
+  --image aztfmod/rover-agent:1.4.6-2307.0508-gitlab  \
+  --vnet ignite-vnet-am-devops-uat \
+  --vnet-address-prefix 192.200.1.96/27 \
+  --subnet ignite-snet-aci  \
+  --subnet-address-prefix 192.200.1.96/28 \
+  --assign-identity --scope $RG_ID \
+  --cpu 4 \
+  --memory 16 \
+  --command-line '"/bin/sh" "-c" "while sleep 1000; do :; done"'
+
+# OR   --command-line "tail -f /dev/null"
+
+az container show \
+  --resource-group ignite-rg-launchpad \
+  --name aci-gitlab-runner
+
+
+SP_ID=$(az container show \
+  --resource-group ignite-rg-launchpad \
+  --name aci-gitlab-runner \
+  --query identity.principalId --out tsv)
+
+az container exec \
+  --resource-group ignite-rg-launchpad \
+  --name aci-gitlab-runner \
+  --exec-command "/bin/zsh"
+
+# execute commands line by line
+
+az login --identity
+
+# ** IMPORTANT - set ARM_USE_MSI = true everytime you bring up the zsh terminal
+export ARM_USE_MSI=true
+
+# TODO: manually grant OWNER right to aci-gitlab-runner managed identity
+# open azure portal, grant OWNER right to container system managed identity "aci-gitlab-runner"
+
+git clone https://github.com/thiamsoontan/caf-gcc-starter-kit-ignite.git
+
+mv /tf/caf/caf-gcc-starter-kit-ignite/definition /tf/caf
+mv /tf/caf/caf-gcc-starter-kit-ignite/ansible /tf/caf
+mv /tf/caf/caf-gcc-starter-kit-ignite/patches /tf/caf
+mv /tf/caf/caf-gcc-starter-kit-ignite/.devcontainer /tf/caf
+
+# prepare the rover containers
+sudo chmod -R -f 777 /tf/caf/.devcontainer/setup.sh
+cd /tf/caf/.devcontainer
+./setup.sh
+cd /tf/caf
+
+# manually/patch add computerName="aci-gitlab-runner" to line 673 to use container instance "aci-gitlab-runner"
+# vi /tf/rover/functions.sh
+
+sudo chmod -R -f 777 /tf/rover/functions.sh 
+cp /tf/caf/patches/rover/functions.sh /tf/rover/functions.sh
+
+
+
+=======================================================
+# End container group with system-managed identity
+========================================================
+
+
+========================================================
+# VPN - point to site VPN
+========================================================
+
+az network vnet subnet create -g ignite-rg-launchpad -n GatewaySubnet --vnet-name ignite-vnet-am-devops-uat --address-prefix 192.200.1.112/29
+
+az network public-ip create -g ignite-rg-launchpad -n ignite-pip-gw --allocation-method Dynamic
+
+az network vnet-gateway create --resource-group ignite-rg-launchpad --name ignite-gw-clienttogitlabrunner --public-ip-addresses ignite-pip-gw --vnet ignite-vnet-am-devops-uat --gateway-type Vpn --sku VpnGw1 --vpn-type RouteBased 
+
+az network vnet-gateway show -g ignite-rg-launchpad -n ignite-gw-clienttogitlabrunner -o table
+
+az network public-ip show -n ignite-pip-gw -g ignite-rg-launchpad
+
+
+# Following command will be used to configure the Address pool and tunnel type.
+az network vnet-gateway update -g ignite-rg-launchpad -n ignite-gw-clienttogitlabrunner --address-prefixes 172.18.176.0/26 --client-protocol SSTP
+
+# The following command creates a self-signed root certificate named ‘P2SRootCert’
+# using window Powershell
+#=====================================================
+$cert = New-SelfSignedCertificate -Type Custom -KeySpec Signature -Subject “CN=P2SRootCert” -KeyExportPolicy Exportable -HashAlgorithm sha256 -KeyLength 2048 -CertStoreLocation “Cert:\CurrentUser\My” -KeyUsageProperty Sign -KeyUsage CertSign
+
+# if you did not close the old Powershell window, type the following command, The client certificate will be automatically installed in ‘Certificates – Current User\Personal\Certificates’ on your computer.
+New-SelfSignedCertificate -Type Custom -DnsName P2SChildCert -KeySpec Signature -Subject “CN=P2S ChildCert” -KeyExportPolicy Exportable -HashAlgorithm sha256 -KeyLength 2048 -CertStoreLocation “Cert:\CurrentUser\My” -Signer $cert -TextExtension @(“2.5.29.37={text}1.3.6.1.5.5.7.3.2”)
+
+# Export the root certificate public key (.cer):
+
+# After creating a self-signed root certificate, we will export the root certificate public key .cer file (not the private key). we will later upload this file to Azure. Following steps will help you export the .cer file for your self-signed root certificate:
+# First find the Thumb Print of Certificate:
+
+Get-ChildItem -Path Cert:\CurrentUser\My\ -recurse
+
+Thumbprint                                Subject
+----------                                -------
+>> 65BF70A3A74B2BD85C4F6F4AC8A63662868BA99E  CN=P2SRootCert
+>> 207F04CCBF63CE662767B7030E0FBE85BE83773A  CN=P2S ChildCert
+
+#Next export to in a .cer file
+
+$cert = (Get-ChildItem -Path cert:\CurrentUser\My\65BF70A3A74B2BD85C4F6F4AC8A63662868BA99E)
+
+Export-Certificate -Cert $cert -FilePath c:\root.cer
+
+The above Export-Certificate cmdlet does not offer the “Base-64 encoded X.509 (.CER)” type to be exported so we need to run the following command.
+
+cd c:\windows\system32
+
+.\certutil.exe -encode c:\root.cer c:\base64cert.cer
+
+
+
+# Now we can upload the .cer file (which contains the public key information) for a trusted root certificate to Azure. Once a.cer file is uploaded, Azure can use it to authenticate clients that have installed a client certificate generated from the trusted root certificate. The following command will be used to upload .Cer file
+# using zsh terminal
+#=====================================================
+
+# copy the two cert into rover cert folder /tf/caf/cert/base64cert.cer
+
+az network vnet-gateway root-cert create -g ignite-rg-launchpad -n P2SRootCert --gateway-name ignite-gw-clienttogitlabrunner --public-cert-data "/tf/caf/cert/base64cert.cer"
+
+
+
+# Powershell
+======================================================
+# Following command will be used to export Cert in .pfx file with Password “abc123”
+
+$mypwd = ConvertTo-SecureString -String “abc123” -Force -AsPlainText
+Get-ChildItem -Path cert:\currentuser\my\207F04CCBF63CE662767B7030E0FBE85BE83773A | Export-PfxCertificate -FilePath C:\mypfx.pfx -Password $mypwd
+
+
+$mypwd = Get-Credential -UserName ‘Enter password below’ -Message ‘Enter password below’
+# a dialog box will apprear type the certificate password “abc123”
+
+# type very next command to import the PFX file my.pfx with a private non-exportable key into the My store for the Current User.
+Import-PfxCertificate -FilePath C:\mypfx.pfx -CertStoreLocation Cert:\currentuser\My -Password $mypwd.Password
+
+
+# zsh termianl
+# to download VPN client, type following: (or download from Azure Portal "ignite-gw-clienttogitlabrunner | Point-to-site configuration")
+
+az network vnet-gateway vpn-client generate --resource-group ignite-rg-launchpad --name ignite-gw-clienttogitlabrunner --processor-architecture Amd64
+
+========================================================
+# End VPN - point to site VPN
+========================================================
+
+=======================================================
+# Ignite - code generator
+========================================================
+
+# edit the below configuration files
+
+/tf/caf/definition/config_application.yaml
+/tf/caf/definition/config_gcc.yaml
+/tf/caf/definition/config_solution_accelerators.yaml
+
+
+# check prefix and subscription id
+
+# execute ignite
+cd /tf/caf/ansible
+# ansible-playbook gcc-starter-playbook.yml
+rover ignite --playbook /tf/caf/ansible/gcc-starter-playbook.yml
+sudo chmod -R -f 777 /tf/caf/gcc_starter
+cd /tf/caf
+
+=======================================================
+# End Ignite - code generator
+========================================================
+
+=================================================================================
+# Begin CAF Terraform for GCC
+=================================================================================
+
+
+Steps
+1. OPTIONAL - create development environment (only for your own test environment)
+go to /tf/caf/{{gcc_starter_project_folder}}/gcc-dev-env/README.md
+
+# ** IMPORTANT - set ARM_USE_MSI = true everytime you bring up the zsh terminal if using agent to execute rover commands
+export ARM_USE_MSI=true
+
+# launchpad
+=================================================================================
+
+2. launchpad - /tf/caf/{{gcc_starter_project_folder}}/landingzone/configuration/level0/launchpad
+
+rover -lz /tf/caf/landingzones/caf_launchpad \
+  -launchpad \
+  -var-folder /tf/caf/{{gcc_starter_project_folder}}/landingzone/configuration/level0/launchpad \
+  -env uat \
+  -skip-permission-check \
+  -a plan
+
+# networking
+=================================================================================
+
+3. level 3 - shared services - /tf/caf/{{gcc_starter_project_folder}}/landingzone/configuration/level3/shared_services
+
+rover -lz rover -lz /tf/caf/landingzones/caf_solution \
+  -level level3 \
+  -var-folder /tf/caf/{{gcc_starter_project_folder}}/landingzone/configuration/level3/shared_services \
+  -parallelism 30 \
+  -env uat \
+  -skip-permission-check \
+  -tfstate shared_services.tfstate \
+  -a plan
+
+4. level 3 - management - /tf/caf/{{gcc_starter_project_folder}}/landingzone/configuration/level3/networking_spoke_management
+
+rover -lz rover -lz /tf/caf/landingzones/caf_solution \
+-level level3 \
+-var-folder /tf/caf/{{gcc_starter_project_folder}}/landingzone/configuration/level3/networking_spoke_management \
+-parallelism 30 \
+-env uat \
+-tfstate networking_spoke_management.tfstate \
+-a plan
+
+5. level 3 - devops - /tf/caf/{{gcc_starter_project_folder}}/landingzone/configuration/level3/networking_spoke_devops
+
+rover -lz /tf/caf/landingzones/caf_solution \
+-level level3 \
+-var-folder /tf/caf/{{gcc_starter_project_folder}}/landingzone/configuration/level3/networking_spoke_devops \
+-parallelism 30 \
+-env uat \
+-tfstate networking_spoke_devops.tfstate \
+-a plan
+
+6. level 3 - hub internet - /tf/caf/{{gcc_starter_project_folder}}/landingzone/configuration/level3/networking_hub_internet
+
+rover -lz rover -lz /tf/caf/landingzones/caf_solution \
+-level level3 \
+-var-folder /tf/caf/{{gcc_starter_project_folder}}/landingzone/configuration/level3/networking_hub_internet \
+-env uat \
+-tfstate networking_hub_internet.tfstate \
+-a plan
+
+7. level 3 - hub intranet - /tf/caf/{{gcc_starter_project_folder}}/landingzone/configuration/level3/networking_hub_intranet
+
+rover -lz rover -lz /tf/caf/landingzones/caf_solution \
+-level level3 \
+-var-folder /tf/caf/{{gcc_starter_project_folder}}/landingzone/configuration/level3/networking_hub_intranet \
+-env uat \
+-tfstate networking_hub_intranet.tfstate \
+-a plan
+
+8. level 3 - spoke project - /tf/caf/{{gcc_starter_project_folder}}/landingzone/configuration/level3/networking_spoke_internet
+
+rover -lz rover -lz /tf/caf/landingzones/caf_solution \
+-level level3 \
+-var-folder /tf/caf/{{gcc_starter_project_folder}}/landingzone/configuration/level3/networking_spoke_internet \
+-env uat \
+-tfstate networking_spoke_internet.tfstate \
+-a plan
+
+
+# firewall, application gateway
+===============================
+
+9. egress firewall internet
+
+rover -lz rover -lz /tf/caf/landingzones/caf_solution \
+-level level3 \
+-var-folder /tf/caf/{{gcc_starter_project_folder}}/landingzone/configuration/level3/egress_internet/firewall \
+-parallelism 30 \
+-env {{caf_environment}} \
+-tfstate networking_firewall_egress_internet.tfstate \
+-a apply
+
+10. egress firewall intranet
+
+rover -lz rover -lz /tf/caf/landingzones/caf_solution \
+-level level3 \
+-var-folder /tf/caf/{{gcc_starter_project_folder}}/landingzone/configuration/level3/egress_intranet/firewall \
+-parallelism 30 \
+-env {{caf_environment}} \
+-tfstate networking_firewall_egress_intranet.tfstate \
+-a apply
+
+11. agw internet
+
+rover -lz rover -lz /tf/caf/landingzones/caf_solution \
+-level level3 \
+-var-folder /tf/caf/{{gcc_starter_project_folder}}/landingzone/configuration/level3/ingress_internet/agw \
+-env {{caf_environment}} \
+-tfstate solution_accelerators_agw_internet_ssl.tfstate \
+-a apply
+
+12. agw intranet
+
+rover -lz rover -lz /tf/caf/landingzones/caf_solution \
+-level level3 \
+-var-folder /tf/caf/{{gcc_starter_project_folder}}/landingzone/configuration/level3/ingress_intranet/agw \
+-env {{caf_environment}} \
+-tfstate solution_accelerators_agw_intranet_ssl.tfstate \
+-a apply
+
+13. ingress firewall internet
+
+rover -lz rover -lz /tf/caf/landingzones/caf_solution \
+-level level3 \
+-var-folder /tf/caf/{{gcc_starter_project_folder}}/landingzone/configuration/level3/ingress_internet/firewall \
+-parallelism 30 \
+-env {{caf_environment}} \
+-tfstate networking_firewall_ingress_internet.tfstate \
+-a apply
+
+14. ingress firewall intranet
+
+rover -lz rover -lz /tf/caf/landingzones/caf_solution \
+-level level3 \
+-var-folder /tf/caf/{{gcc_starter_project_folder}}/landingzone/configuration/level3/ingress_intranet/firewall \
+-parallelism 30 \
+-env {{caf_environment}} \
+-tfstate networking_firewall_ingress_intranet.tfstate \
+-a apply
+
+# level 4 - solution accelerators
+================================================================================
+
+
+# DevOps, Management Zone
+===============================
+
+18. Management bastion host and tooling server
+
+rover -lz rover -lz /tf/caf/landingzones/caf_solution \
+-level level4 \
+-var-folder /tf/caf/{{gcc_starter_project_folder}}/landingzone/configuration/level4/management \
+-parallelism 30 \
+-env {{caf_environment}} \
+-tfstate solution_accelerators_management.tfstate \
+-a apply
+
+
+19. devops runner vm or container instances
+
+rover -lz rover -lz /tf/caf/landingzones/caf_solution \
+-level level4 \
+-var-folder /tf/caf/{{gcc_starter_project_folder}}/landingzone/configuration/level4/devops \
+-parallelism 30 \
+-env {{caf_environment}} \
+-tfstate solution_accelerators_devops.tfstate \
+-a apply
+
+# Project
+===============================
+
+20. sql server
+
+rover -lz rover -lz /tf/caf/landingzones/caf_solution \
+-level level4 \
+-var-folder /tf/caf/{{gcc_starter_project_folder}}/landingzone/configuration/level4/project/mssql \
+-env {{caf_environment}} \
+-tfstate solution_accelerators_mssql.tfstate \
+-a apply
+
+21. cosmo db
+
+rover -lz rover -lz /tf/caf/landingzones/caf_solution \
+-level level4 \
+-var-folder /tf/caf/{{gcc_starter_project_folder}}/landingzone/configuration/level4/project/cosmosdb \
+-env {{caf_environment}} \
+-tfstate solution_accelerators_cosmosdb.tfstate \
+-a apply
+
+22 aks and acr
+
+rover -lz rover -lz /tf/caf/landingzones/caf_solution \
+-level level4 \
+-var-folder /tf/caf/{{gcc_starter_project_folder}}/landingzone/configuration/level4/project/aks \
+-env {{caf_environment}} \
+-tfstate solution_accelerators_aks.tfstate \
+-a apply
+
+
+=================================================================================
+# End CAF Terraform for GCC
+=================================================================================
+
+24. deploy sample azure-vote application and validation through internet and intranet
+
+25. add deny all to app nsg and web nsg
+
+cd /tf/caf/ansible/templates/scripts
+../level3_networking.sh
+
+
+26. sql server admin password
+Goto keyvault {{project_code}}-kv-mssql secrets to retrieve your sql server admin password
+
+

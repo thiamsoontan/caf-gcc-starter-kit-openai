@@ -1,0 +1,24 @@
+private_dns = {
+  kv_dns_re1 = {
+    name               = "privatelink.vaultcore.azure.net" # must be this name 0 do not change
+    resource_group_key = "kv_rg_re1"
+
+    # vnet link is created after vnet is crated.
+    vnet_links = {
+      app_internet_vnet_link = {
+        name                 = "app-internet-vnet"
+        registration_enabled = false
+        virtual_network_id   = "/subscriptions/{{subscription_id}}/resourceGroups/{{resource_group_name}}/providers/Microsoft.Network/virtualNetworks/{{internet_vnet_name}}"
+      }              
+    }
+
+    tags = { 
+      purpose = "{{zone_code}} keyvault private dns" 
+      project-code = "{{project_code}}" 
+      env = "{{caf_environment}}" 
+      zone = "{{zone_code}}"
+      tier = "{{tier_code}}"          
+    }     
+    
+  }
+}
