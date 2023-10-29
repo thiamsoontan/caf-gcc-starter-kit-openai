@@ -60,18 +60,83 @@ execute the steps in readme file:
 ```
 
 /tf/caf/gcc_starter_escep_uat/landingzone/configuration/level3/shared_services/Readme.md
+```bash
+rover -lz rover -lz /tf/caf/landingzones/caf_solution \
+-level level3 \
+-var-folder /tf/caf/gcc_starter_escep_uat/landingzone/configuration/level3/shared_services \
+-env uat \
+-skip-permission-check \
+-tfstate shared_services.tfstate \
+-a plan
+```
 
 /tf/caf/gcc_starter_escep_uat/landingzone/configuration/level3/networking_spoke_management/README.md
+```bash
+rover -lz rover -lz /tf/caf/landingzones/caf_solution \
+-level level3 \
+-var-folder /tf/caf/gcc_starter_escep_uat/landingzone/configuration/level3/networking_spoke_management \
+-parallelism 30 \
+-env uat \
+-tfstate networking_spoke_management.tfstate \
+-a plan
+```
 
 /tf/caf/gcc_starter_escep_uat/landingzone/configuration/level3/networking_spoke_internet/README.md
+```bash
+rover -lz rover -lz /tf/caf/landingzones/caf_solution \
+-level level3 \
+-var-folder /tf/caf/gcc_starter_escep_uat/landingzone/configuration/level3/networking_spoke_internet \
+-env uat \
+-tfstate networking_spoke_internet.tfstate \
+-a plan
+```
+
 
 /tf/caf/gcc_starter_escep_uat/landingzone/configuration/level3/networking_spoke_devops/README.md
+```bash
+rover -lz /tf/caf/landingzones/caf_solution \
+-level level3 \
+-var-folder /tf/caf/gcc_starter_escep_uat/landingzone/configuration/level3/networking_spoke_devops \
+-parallelism 30 \
+-env uat \
+-tfstate networking_spoke_devops.tfstate \
+-a plan
+```
+
 
 /tf/caf/gcc_starter_escep_uat/landingzone/configuration/level3/networking_hub_internet/README.md
+```bash
+rover -lz rover -lz /tf/caf/landingzones/caf_solution \
+-level level3 \
+-var-folder /tf/caf/gcc_starter_escep_uat/landingzone/configuration/level3/networking_hub_internet \
+-env uat \
+-tfstate networking_hub_internet.tfstate \
+-a plan
+```
+
 
 /tf/caf/gcc_starter_escep_uat/landingzone/configuration/level3/ingress_internet/firewall/README.md
+```bash
+rover -lz rover -lz /tf/caf/landingzones/caf_solution \
+-level level3 \
+-var-folder /tf/caf/gcc_starter_escep_uat/landingzone/configuration/level3/ingress_internet/firewall \
+-parallelism 30 \
+-env uat \
+-tfstate networking_firewall_ingress_internet.tfstate \
+-a plan
+```
+
 
 /tf/caf/gcc_starter_escep_uat/landingzone/configuration/level3/ingress_internet/agw/Readme.md
+```bash
+rover -lz rover -lz /tf/caf/landingzones/caf_solution \
+-level level3 \
+-var-folder /tf/caf/gcc_starter_escep_uat/landingzone/configuration/level3/ingress_internet/agw \
+-env uat \
+-tfstate solution_accelerators_agw_internet_ssl.tfstate \
+-a plan
+```
+
 
 
 
